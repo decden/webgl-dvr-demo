@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+</head>
+<body>
+	<h1>DVR Demo</h1>
+	<p>The following demo demonstrates direct volume rendering on the GPU using WebGL.</p>
+	<p>The source code is available on <a href="">github</a></p>
+
+	<canvas id="gl-canvas" width=500 height=500></canvas>
+	<style>
+		p, h1 {
+			font-family: sans-serif;
+		}
+
+		body{
+			background-color: #eee;
+		}
+
+		canvas {
+			border: 1px solid #aaa;
+			background-color: #fff;
+		}
+	</style>
+
+	<script id="entry-exitpoints-fs" type="x-shader/x-fragment">
+		precision mediump float;
+
+		varying vec3 vObjectspacePos;
+
+		void main(void) {
+			gl_FragColor = vec4(vObjectspacePos, 1.0);
+		}
+	</script>
+
+	<script id="entry-exitpoints-vs" type="x-shader/x-vertex">
+		attribute vec3 aVertexPosition;
+
+		uniform mat4 uModelViewMatrix;
+		uniform mat4 uProjectionMatrix;
+
+		varying vec3 vObjectspacePos;
+
+		void main(void) {
+			mat4 MVP = uProjectionMatrix * uModelViewMatrix;
+			gl_Position = MVP * vec4(aVertexPosition, 1.0);
+			vObjectspacePos = aVertexPosition + vec3(0.5, 0.5, 0.5);
+		}
+	</script>
+
+	<script id="volume-fs" type="x-shader/x-fragment">
+		precision mediump float;
+
+		varying vec2 vUV;
+
+		uniform sampler2D uEntryPointsSampler;
+		uniform sampler2D uExitPointsSampler;
+
+		uniform sampler2D uVolumeTexture;
+		
+		uniform int uNumSlices;
+		uniform int uSlicesPerRow;
+		uniform float uSliceWidth;
+		uniform float uSliceHeight;
+
+		/**
+		 * Returns the trilinearly interpolated value of the volumetric value at the given
+		 * 3d coordinate
+		 */
+		float sampleVolume(vec3 pos)
+		{
+			// Convert to slice index
+			float sliceBelow = floor(pos.z*float(uNumSlices-1));
+			float sliceAbove = ceil(pos.z*float(uNumSlices-1));
+
+			vec2 belowSliceUV = vec2(mod(sliceBelow, float(uSlicesPerRow)), float(int(sliceBelow) / uSlicesPerRow));
+			vec2 aboveSliceUV = vec2(mod(sliceAbove, float(uSlicesPerRow)), float(int(sliceAbove) / uSlicesPerRow));
+
+			belowSliceUV = (belowSliceUV + pos.xy) * vec2(uSliceWidth, uSliceHeight);
+			aboveSliceUV = (aboveSliceUV + pos.xy) * vec2(uSliceWidth, uSliceHeight);
+			
+			float valueBelow = texture2D(uVolumeTexture, belowSliceUV).r;
+
+			if (sliceBelow == sliceAbove) {
+				return valueBelow;
+			} else {
+				// Perform the last linear interpolation
+				float valueAbove = texture2D(uVolumeTexture, aboveSliceUV).r;
+				// Compute linear interpolation factor a
+				float a = sliceAbove - pos.z * float(uNumSlices - 1);
+				return (valueAbove * (1.0 - a) + valueBelow * a);
+			}
+		}
+
+		/**
+		 * Returns the approximated DVR integral along the line defined by entryPoint and exitPoint
+		 */
+		vec4 integrateVolume(vec3 entryPoint, vec3 exitPoint)
+		{
+			// Initial color is transparent black
+			vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+
+			vec3 vector = (exitPoint - entryPoint);
+			float thickness = length(vector);
+			vector = normalize(vector);
+			float step = 0.01;
+
+			// Iterate in step-increments over the volume and compute the integral
+			float depth = 0.0;
+			for (int i = 0; i < 10000; ++i)
+			{
+				if (depth > thickness || color.a > 0.98) break;
+				
+				float sample = sampleVolume(entryPoint + vector * vec3(depth));
+
+				// Hardcoded transfer function
+				float tfAbsorbtion = pow(sample, 1.1);
+				if (tfAbsorbtion < 0.05) tfAbsorbtion = 0.0;
+				float tfOpacity = 1.0 - exp(-step * tfAbsorbtion * 40.0);
+				vec3 sampleColor = vec3(sample*1.0);
+				if (sample > 0.35) {
+					sampleColor.r = 0.6;
+				} else {
+					sampleColor.b += 0.1;
+				}
+
+				// Composite step
+				color.rgb = sampleColor * vec3(tfOpacity) * vec3(1.0 - color.a) + color.rgb;
+				color.a = tfOpacity * (1.0 - color.a) + color.a;
+
+				depth += step;
+			}
+
+			return color;
+		}
+
+		void main(void) {
+			vec4 entryPoint = texture2D(uEntryPointsSampler, vUV);
+			vec4 exitPoint = texture2D(uExitPointsSampler, vUV);
+
+			if (entryPoint.a < 0.1 || exitPoint.a < 0.1)
+			{
+				gl_FragColor = vec4(0);
+			}
+			else
+			{
+				float thickness = length(exitPoint.xyz - entryPoint.xyz);
+				float absorbtion = exp(-(thickness*4.0));
+
+				vec4 color = integrateVolume(entryPoint.xyz, exitPoint.xyz);
+				gl_FragColor = color;
+			}
+		}
+	</script>
+
+	<script id="volume-vs" type="x-shader/x-fragment">
+		attribute vec3 aVertexPosition;
+
+		varying vec2 vUV;
+
+		void main(void) {
+			vUV = aVertexPosition.xy * vec2(0.5) + vec2(0.5);
+			gl_Position = vec4(aVertexPosition, 1.0);
+		}
+	</script>
+
+	<script src="./js/dat-gui.js"></script>
+	<script src="./js/gl-matrix.js"></script>
+	<script src="./js/volumerenderer.js"></script>
+
+	<script>
+		var volumeRenderer;
+		var lastTime = 0;
+
+		function tick() {
+			var timeNow = new Date().getTime();
+			if (lastTime != 0) {
+				var elapsed = timeNow - lastTime;
+				volumeRenderer.update(elapsed);
+			}
+			lastTime = timeNow;
+
+			window.requestAnimationFrame(tick);
+			volumeRenderer.draw();
+		}
+
+		function main()
+		{
+			volumeRenderer = new VolumeRenderer();
+			if (!volumeRenderer.initGL(document.getElementById("gl-canvas")))
+			{
+				alert("Sorry, could not initialize WebGL");
+				return;
+			}
+			volumeRenderer.initVolumeGeometry("tex.png", 128, 128, 114, 11);
+			tick();
+		}
+
+		main();
+	</script>
+</body>
+</html>
