@@ -6,7 +6,7 @@
 <body>
 	<h1>DVR Demo</h1>
 	<p>The following demo demonstrates direct volume rendering on the GPU using WebGL.</p>
-	<p>The source code is available on <a href="">github</a></p>
+	<p>The source code is available on <a href="https://github.com/decden/webgl-dvr-demo/tree/gh-pages">github</a></p>
 
 	<canvas id="gl-canvas" width=500 height=500></canvas>
 	<style>
@@ -193,7 +193,7 @@
 				alert("Sorry, could not initialize WebGL");
 				return;
 			}
-			volumeRenderer.initVolumeGeometry("tex.png", 128, 128, 114, 11);
+			volumeRenderer.initVolumeGeometry("./data/tex.png", 128, 128, 114, 11);
 			tick();
 		}
 
