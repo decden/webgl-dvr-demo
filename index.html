@@ -8,7 +8,7 @@
 	<p>The following demo demonstrates direct volume rendering on the GPU using WebGL.</p>
 	<p>The source code is available on <a href="https://github.com/decden/webgl-dvr-demo/tree/gh-pages">github</a></p>
 
-	<canvas id="gl-canvas" width=500 height=500></canvas>
+	<canvas id="gl-canvas" width=512 height=512></canvas>
 	<style>
 		p, h1 {
 			font-family: sans-serif;
@@ -165,7 +165,6 @@
 		}
 	</script>
 
-	<script src="./js/dat-gui.js"></script>
 	<script src="./js/gl-matrix.js"></script>
 	<script src="./js/volumerenderer.js"></script>
 
@@ -197,7 +196,7 @@
 			tick();
 		}
 
-		main();
+		window.onload = main;
 	</script>
 </body>
 </html>

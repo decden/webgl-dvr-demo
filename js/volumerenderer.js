@@ -97,6 +97,14 @@ function ShaderProgram(gl, vertShaderId, fragShaderId)
 	gl.attachShader(this.program, this.fs);
 	gl.linkProgram(this.program);
 
+	var linked = gl.getProgramParameter(this.program, gl.LINK_STATUS);
+	if (!linked) {
+		// An error occurred while linking
+		var lastError = gl.getProgramInfoLog(this.program);
+		alert("Error in program linking:" + lastError);
+		gl.deleteProgram(this.program);
+	}
+
 	this.attributes = {};
 	this.uniforms = {};
 
@@ -286,6 +294,9 @@ function VolumeRenderer() {
 		try {
 			this.canvas = canvas;
 			this.gl = canvas.getContext("webgl");
+			if (this.gl === null)
+				throw "Couldn't get a WebGL context"
+
 			this.gl.viewportWidth = canvas.width;
 			this.gl.viewportHeight = canvas.height;
 			this.anim = {angle: 0.0};
