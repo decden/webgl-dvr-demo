@@ -364,6 +364,9 @@ function VolumeRenderer() {
 		texture = gl.createTexture();
 		texture.image = new Image();
 		texture.isLoaded = false;
+		texture.slices = slices;
+		texture.slicesPerRow = slicesPerRow;
+
 		texture.image.onload = function()
 		{
 			gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -375,15 +378,12 @@ function VolumeRenderer() {
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 			gl.bindTexture(gl.TEXTURE_2D, null);
+
+			// Set last parameters
+			texture.sliceWidth = sliceWidth / texture.image.width;
+			texture.sliceHeight = sliceHeight / texture.image.height;
+
 			texture.isLoaded = true;
-
-			// Set volume shader properties
-			shaders.volume.setUniformInt("uNumSlices", slices);
-			shaders.volume.setUniformInt("uSlicesPerRow", slicesPerRow);
-			shaders.volume.setUniformFloat("uSliceWidth", sliceWidth / texture.image.width);
-			shaders.volume.setUniformFloat("uSliceHeight", sliceHeight / texture.image.height);
-
-			console.log(slices, slicesPerRow, sliceWidth / texture.image.width, sliceHeight / texture.image.height)
 		}
 		texture.image.src = volumeTexture;
 		this.textures.volume = texture;
@@ -431,6 +431,7 @@ function VolumeRenderer() {
 		// 1) Calculate the entry points by using the entryExitPoints shader program
 		//    Store this information into a framebuffer
 		if (this.gl == null) return;
+		if (this.textures.volume.isLoaded == false) return;
 		var gl = this.gl;
 
 		// 0) Prepare shader for entry and exit points calculation as well as shared opengl state
@@ -477,6 +478,12 @@ function VolumeRenderer() {
 		if (this.textures.volume.isLoaded) {
 			gl.activeTexture(gl.TEXTURE2);
 			gl.bindTexture(gl.TEXTURE_2D, this.textures.volume);
+
+			program.setUniformInt("uNumSlices", this.textures.volume.slices);
+			program.setUniformInt("uSlicesPerRow", this.textures.volume.slicesPerRow);
+			program.setUniformFloat("uSliceWidth", this.textures.volume.sliceWidth);
+			program.setUniformFloat("uSliceHeight", this.textures.volume.sliceHeight);
+
 			program.setUniformInt("uVolumeTexture", 2);
 		}
 		this.viewportQuad.render();
