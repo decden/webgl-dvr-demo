@@ -284,6 +284,8 @@ function VolumeRenderer() {
 	this.domainCube = null;
 	this.viewportQuad = null;
 
+	this.ext = {};
+
 	/**
 	 * The renderer needs first to be bound to a canvas and obtain a webGL context.
 	 * This function will also try to enable the extensions that are needed for it to function.
@@ -301,8 +303,7 @@ function VolumeRenderer() {
 			this.gl.viewportHeight = canvas.height;
 			this.anim = {angle: 0.0};
 			// Enable additional extensions
-			if (this.gl.getExtension("OES_texture_float") === null)
-				throw "Your device does not support float textres!";
+			this.ext.texture_float = (this.gl.getExtension("OES_texture_float") !== null);
 
 			this._initShaders();
 			this._initFramebuffers();
@@ -346,8 +347,10 @@ function VolumeRenderer() {
 	this._initFramebuffers = function()
 	{
 		var gl = this.gl;
-		this.framebuffers.exitpoints = new FrameBuffer(gl, gl.viewportWidth, gl.viewportHeight, true, gl.FLOAT);
-		this.framebuffers.entrypoints = new FrameBuffer(gl, gl.viewportWidth, gl.viewportHeight, true, gl.FLOAT);
+		var type = this.ext.texture_float ? gl.FLOAT : gl.UNSIGNED_BYTE;
+
+		this.framebuffers.exitpoints = new FrameBuffer(gl, gl.viewportWidth, gl.viewportHeight, true, type);
+		this.framebuffers.entrypoints = new FrameBuffer(gl, gl.viewportWidth, gl.viewportHeight, true, type);
 	}
 
 	/**
