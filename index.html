@@ -6,7 +6,8 @@
 <body>
 	<h1>DVR Demo</h1>
 	<p>The following demo demonstrates direct volume rendering on the GPU using WebGL.</p>
-	<p>The source code is available on <a href="https://github.com/decden/webgl-dvr-demo/tree/gh-pages">github</a></p>
+	<p>The source code is available on <a href="https://github.com/decden/webgl-dvr-demo/tree/gh-pages">github</a>.</p>
+	<p>The code has been tested on google chrome, firefox on both windows and linux. Internet explorer is not yet able to run this code.</p>
 
 	<canvas id="gl-canvas" width=512 height=512></canvas>
 	<style>
@@ -93,10 +94,29 @@
 			}
 		}
 
+		vec4 transferFunction(float sample, float thickness)
+		{
+			vec4 tf;
+
+			tf.a = pow(sample, 1.1);
+			if (tf.a < 0.05) tf.a = 0.0;
+			// Beer-lambert law
+			tf.a = 1.0 - exp(-thickness * tf.a * 40.0);
+
+			tf.rgb = vec3(sample*1.0);
+			if (sample > 0.35) {
+				tf.r = 0.6;
+			} else {
+				tf.b += 0.1;
+			}
+
+			return tf;
+		}
+
 		/**
 		 * Returns the approximated DVR integral along the line defined by entryPoint and exitPoint
 		 */
-		vec4 integrateVolume(vec3 entryPoint, vec3 exitPoint)
+		vec4 integrateVolume(const vec3 entryPoint, const vec3 exitPoint)
 		{
 			// Initial color is transparent black
 			vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
@@ -104,32 +124,21 @@
 			vec3 vector = (exitPoint - entryPoint);
 			float thickness = length(vector);
 			vector = normalize(vector);
-			float step = 0.01;
+			const float step = 0.01;
 
 			// Iterate in step-increments over the volume and compute the integral
-			float depth = 0.0;
-			for (int i = 0; i < 100; ++i)
+			for (float depth = 0.0; depth < 1.0; depth+=step)
 			{
 				if (depth > thickness || color.a > 0.98) break;
 				
 				float sample = sampleVolume(entryPoint + vector * vec3(depth));
 
 				// Hardcoded transfer function
-				float tfAbsorbtion = pow(sample, 1.1);
-				if (tfAbsorbtion < 0.05) tfAbsorbtion = 0.0;
-				float tfOpacity = 1.0 - exp(-step * tfAbsorbtion * 40.0);
-				vec3 sampleColor = vec3(sample*1.0);
-				if (sample > 0.35) {
-					sampleColor.r = 0.6;
-				} else {
-					sampleColor.b += 0.1;
-				}
+				vec4 tf = transferFunction(sample, step);
 
 				// Composite step
-				color.rgb = sampleColor * vec3(tfOpacity) * vec3(1.0 - color.a) + color.rgb;
-				color.a = tfOpacity * (1.0 - color.a) + color.a;
-
-				depth += step;
+				color.rgb = tf.rgb * vec3(tf.a) * vec3(1.0 - color.a) + color.rgb;
+				color.a = tf.a * (1.0 - color.a) + color.a;
 			}
 
 			return color;

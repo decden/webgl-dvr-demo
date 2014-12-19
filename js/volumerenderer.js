@@ -295,7 +295,7 @@ function VolumeRenderer() {
 	{
 		try {
 			this.canvas = canvas;
-			this.gl = canvas.getContext("webgl");
+			this.gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
 			if (this.gl === null)
 				throw "Couldn't get a WebGL context"
 
